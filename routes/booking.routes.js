@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const bookingController = require('../controllers/booking.controller');
 
+// Get available time slots - must be before :id route to avoid confusion
+router.get('/timeslots', bookingController.getTimeSlots);
+
+// Check availability - must be before :id route to avoid confusion
+router.get('/availability', bookingController.checkAvailability);
+
 // Get all bookings
 router.get('/', bookingController.findAll);
 
@@ -16,11 +22,5 @@ router.put('/:id', bookingController.update);
 
 // Delete a booking
 router.delete('/:id', bookingController.delete);
-
-// Get available time slots
-router.get('/timeslots', bookingController.getTimeSlots);
-
-// Check availability
-router.get('/availability', bookingController.checkAvailability);
 
 module.exports = router;

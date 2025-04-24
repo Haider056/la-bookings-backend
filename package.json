@@ -1,24 +1,33 @@
 {
   "name": "la-bookings-api",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Booking API for LA Bookings",
+  "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "helmet": "^8.1.0",
-    "mysql2": "^3.14.0",
-    "ssh2": "^1.16.0"
+    "mongodb": "^6.16.0",
+    "mongoose": "^8.13.2",
+    "mysql-ssh": "^1.0.6",
+    "mysql2": "^3.6.1",
+    "ssh2": "^1.16.0",
+    "tunnel-ssh": "^5.1.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }

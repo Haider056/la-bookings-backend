@@ -1,5 +1,15 @@
 const Booking = require('../models/booking.model');
-const db = require('../config/db.config.js');
+const { connectToDatabase, mongoose } = require('../config/db.config');
+
+// Initialize database connection
+(async () => {
+  try {
+    await connectToDatabase();
+  } catch (error) {
+    console.error('Failed to initialize database connection in booking controller:', error);
+  }
+})();
+
 // Get all bookings
 exports.findAll = async (req, res) => {
   try {
@@ -30,6 +40,19 @@ exports.create = async (req, res) => {
       return res.status(400).json({ message: 'Content cannot be empty' });
     }
     
+    // Handle date format conversion
+    if (req.body.booking_date && typeof req.body.booking_date === 'string') {
+      try {
+        // Convert to Date object
+        req.body.booking_date = new Date(req.body.booking_date);
+        if (isNaN(req.body.booking_date.getTime())) {
+          return res.status(400).json({ message: 'Invalid date format' });
+        }
+      } catch (err) {
+        return res.status(400).json({ message: 'Invalid date format' });
+      }
+    }
+    
     const newBooking = await Booking.create(req.body);
     res.status(201).json(newBooking);
   } catch (error) {
@@ -42,6 +65,19 @@ exports.update = async (req, res) => {
   try {
     if (!req.body) {
       return res.status(400).json({ message: 'Content cannot be empty' });
+    }
+    
+    // Handle date format conversion
+    if (req.body.booking_date && typeof req.body.booking_date === 'string') {
+      try {
+        // Convert to Date object
+        req.body.booking_date = new Date(req.body.booking_date);
+        if (isNaN(req.body.booking_date.getTime())) {
+          return res.status(400).json({ message: 'Invalid date format' });
+        }
+      } catch (err) {
+        return res.status(400).json({ message: 'Invalid date format' });
+      }
     }
     
     const updated = await Booking.updateById(req.params.id, req.body);
@@ -69,97 +105,119 @@ exports.delete = async (req, res) => {
 
 // Get available time slots
 exports.getTimeSlots = async (req, res) => {
-    try {
-      const { date, category } = req.query;
+  try {
+    const { date, category } = req.query;
+    
+    // Get the current date or use provided date
+    const selectedDate = date ? new Date(date) : new Date();
+    
+    // Generate time slots for the next 7 days
+    const timeSlots = {};
+    
+    // Get existing bookings to avoid conflicts
+    const existingBookingsData = await Booking.findAll();
+    
+    // Create a map of booked slots
+    const bookedSlots = {};
+    
+    existingBookingsData.forEach(booking => {
+      if (!booking.booking_date) return;
       
-      // Get the current date or use provided date
-      const selectedDate = date ? new Date(date) : new Date();
+      let dateKey = '';
       
-      // Generate time slots for the next 7 days
-      const timeSlots = {};
+      // Format date into YYYY-MM-DD
+      const bookingDate = new Date(booking.booking_date);
+      dateKey = bookingDate.toISOString().split('T')[0];
       
-      // Get existing bookings to avoid conflicts
-      const [existingBookings] = await db.query(
-        'SELECT booking_date, booking_time FROM custom_booking_submissions WHERE booking_date >= ?',
-        [selectedDate.toISOString().split('T')[0]]
-      );
+      if (!bookedSlots[dateKey]) bookedSlots[dateKey] = [];
       
-      // Create a map of booked slots
-      const bookedSlots = {};
-      existingBookings.forEach(booking => {
-        const dateKey = booking.booking_date.toISOString().split('T')[0];
-        if (!bookedSlots[dateKey]) bookedSlots[dateKey] = [];
-        bookedSlots[dateKey].push(booking.booking_time);
-      });
+      // Get time string
+      bookedSlots[dateKey].push(booking.booking_time);
+    });
+    
+    // Generate time slots for the next 7 days
+    for (let i = 0; i < 7; i++) {
+      const currentDate = new Date(selectedDate);
+      currentDate.setDate(selectedDate.getDate() + i);
       
-      // Generate time slots for the next 7 days
-      for (let i = 0; i < 7; i++) {
-        const currentDate = new Date(selectedDate);
-        currentDate.setDate(selectedDate.getDate() + i);
+      const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+      const dateDisplay = currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+      const fullDate = currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      const dateKey = currentDate.toISOString().split('T')[0];
+      
+      // Generate time slots from 9 AM to 5 PM
+      const availableTimes = [];
+      for (let hour = 9; hour <= 16; hour++) {
+        const timeString = `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`;
         
-        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
-        const dateDisplay = currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-        const fullDate = currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-        const dateKey = currentDate.toISOString().split('T')[0];
-        
-        // Skip weekends if needed (uncomment if you want to skip weekends)
-        // if (dayName === 'Saturday' || dayName === 'Sunday') continue;
-        
-        // Generate time slots from 9 AM to 5 PM
-        const availableTimes = [];
-        for (let hour = 9; hour <= 16; hour++) {
-          const timeString = `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`;
-          
-          // Check if this slot is already booked
-          if (!bookedSlots[dateKey] || !bookedSlots[dateKey].includes(timeString)) {
-            availableTimes.push(timeString);
-          }
+        // Check if this slot is already booked
+        if (!bookedSlots[dateKey] || !bookedSlots[dateKey].includes(timeString)) {
+          availableTimes.push(timeString);
         }
-        
-        timeSlots[dayName] = {
-          date: dateDisplay,
-          full_date: fullDate,
-          times: availableTimes
-        };
       }
       
-      res.json(timeSlots);
-    } catch (error) {
-      console.error('Database error:', error);
-      res.status(500).json({ 
-        message: 'Error retrieving time slots', 
-        error: error.message 
-      });
+      timeSlots[dayName] = {
+        date: dateDisplay,
+        full_date: fullDate,
+        times: availableTimes
+      };
     }
-  };
+    
+    res.json(timeSlots);
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({ 
+      message: 'Error retrieving time slots', 
+      error: error.message 
+    });
+  }
+};
 
-  exports.checkAvailability = async (req, res) => {
-    try {
-      const { date, time } = req.query;
-      
-      if (!date || !time) {
-        return res.status(400).json({ available: false, message: 'Date and time are required' });
-      }
-      
-      // Check if the requested slot is available
-      const [bookings] = await db.query(
-        'SELECT COUNT(*) as count FROM custom_booking_submissions WHERE booking_date = ? AND booking_time = ?',
-        [date, time]
-      );
-      
-      const isAvailable = bookings[0].count === 0;
-      
-      res.json({
-        available: isAvailable,
-        message: isAvailable ? 'Time slot is available' : 'Time slot is already booked'
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        available: false,
-        message: 'Error checking availability', 
-        error: error.message 
-      });
+exports.checkAvailability = async (req, res) => {
+  try {
+    const { date, time } = req.query;
+    
+    if (!date || !time) {
+      return res.status(400).json({ available: false, message: 'Date and time are required' });
     }
-  };
-  
-  module.exports = exports;
+    
+    // Convert date string to Date object for MongoDB query
+    const bookingDate = new Date(date);
+    
+    // Validate date
+    if (isNaN(bookingDate.getTime())) {
+      return res.status(400).json({ available: false, message: 'Invalid date format' });
+    }
+    
+    // Start and end of the selected date
+    const startDate = new Date(bookingDate);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(bookingDate);
+    endDate.setHours(23, 59, 59, 999);
+    
+    // Check if the requested slot is available
+    const bookings = await mongoose.model('Booking').find({
+      booking_date: {
+        $gte: startDate,
+        $lte: endDate
+      },
+      booking_time: time
+    });
+    
+    const isAvailable = bookings.length === 0;
+    
+    res.json({
+      available: isAvailable,
+      message: isAvailable ? 'Time slot is available' : 'Time slot is already booked'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      available: false,
+      message: 'Error checking availability', 
+      error: error.message 
+    });
+  }
+};
+
+module.exports = exports;
