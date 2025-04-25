@@ -35,6 +35,11 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  status: {
+    type: String,
+    enum: ['pending', 'confirmed', 'cancelled'],
+    default: 'pending'
+  },
   employee_id: {
     type: Number,
     default: 0
@@ -139,6 +144,15 @@ class BookingModel {
           $lte: endDate
         }
       }).sort({ booking_time: 1 });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Find bookings by customer email
+  static async find(criteria) {
+    try {
+      return await Booking.find(criteria).sort({ created_at: -1 });
     } catch (error) {
       throw error;
     }

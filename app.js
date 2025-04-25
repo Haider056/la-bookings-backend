@@ -5,6 +5,7 @@ const { connectToDatabase } = require('./config/db.config');
 const bookingRoutes = require('./routes/booking.routes');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
+const adminRoutes = require('./routes/admin.routes');
 const bookingController = require('./controllers/booking.controller');
 
 // Create Express app
@@ -14,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 // Enhanced CORS middleware to handle WordPress requests
 app.use(cors({
   origin: '*', // Allow requests from any origin
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
   preflightContinue: false,
@@ -24,7 +25,7 @@ app.use(cors({
 // Additional CORS headers for problematic clients
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   // Handle preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
@@ -46,7 +47,7 @@ app.use((req, res, next) => {
   // Check if database is connected
   const mongoose = require('mongoose');
   if (mongoose.connection.readyState !== 1) {
-    console.warn('⚠️ Database not connected when handling request to', req.path);
+    // Database connection warning - silently continue in production
     
     // Return error for API endpoints but not for static assets
     if (req.path.startsWith('/api/')) {
@@ -60,16 +61,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Log incoming requests for debugging
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-  next();
-});
-
 // Define routes - ensure this matches what clients are calling
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Add special routes for WordPress compatibility
 app.get('/api/timeslots', bookingController.getTimeSlots);  // Match WordPress URL
@@ -93,7 +89,7 @@ app.get('/api/test', (req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error('❌ Unhandled error:', err);
+  // Error occurred but we don't log it in production
   res.status(500).json({
     status: 'error',
     message: 'An unexpected error occurred',
@@ -114,39 +110,27 @@ async function startServer() {
   try {
     // Test database connection
     await connectToDatabase();
-    console.log('✅ MongoDB connection successfully established');
-
+    
     // Start the server
     app.listen(PORT, () => {
-      console.log(`✅ Server is running on port ${PORT}`);
-      console.log(`📍 API endpoints available at:`);
-      console.log(`   - GET /api/bookings`);
-      console.log(`   - GET /api/bookings/timeslots`);
-      console.log(`   - GET /api/timeslots (WordPress compatibility)`);
-      console.log(`   - POST /api/bookings`);
-      console.log(`   - POST /api/auth/register`);
-      console.log(`   - POST /api/auth/login`);
-      console.log(`   - GET /api/auth/me (protected)`);
-      console.log(`   - GET /api/users/profile (protected)`);
-      console.log(`   - PATCH /api/users/profile (protected)`);
+      // Server started - no need to log in production
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    // Failed to start server but we don't log it in production
     
     // Try to connect to the database in the background
     setTimeout(async () => {
       try {
-        console.log('🔄 Retrying database connection...');
         await connectToDatabase();
-        console.log('✅ MongoDB connection established after retry');
+        // Database connection established after retry - no need to log in production
       } catch (err) {
-        console.error('❌ Retry failed:', err);
+        // Retry failed - silent in production
       }
     }, 5000);
     
     // Start server anyway to handle requests with appropriate error messages
     app.listen(PORT, () => {
-      console.log(`⚠️ Server is running on port ${PORT} with limited functionality (database unavailable)`);
+      // Server started with limited functionality - no need to log in production
     });
   }
 }

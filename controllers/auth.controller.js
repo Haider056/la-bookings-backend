@@ -39,14 +39,18 @@ exports.register = async (req, res) => {
         message: 'Email already registered'
       });
     }
-
-    // Create user
-    const user = await User.create({
+    
+    // Prevent admin creation via API - force role to be 'user'
+    const userData = {
       name,
       email,
       password,
+      role: 'user', // Force role to be 'user' regardless of what's in the request
       verificationToken: crypto.randomBytes(32).toString('hex')
-    });
+    };
+
+    // Create user
+    const user = await User.create(userData);
 
     // Generate JWT token
     const token = generateToken(user._id);

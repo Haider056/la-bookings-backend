@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 // MongoDB connection string from .env
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://bruisegamer44:U2BH9fUbB2pILX8L@cluster0.opufrmt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_URI 
 
 // Global connection variable
 let connection = null;
