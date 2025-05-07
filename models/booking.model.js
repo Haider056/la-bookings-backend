@@ -51,9 +51,32 @@ const bookingSchema = new mongoose.Schema({
   booking_notes: {
     type: String
   },
+  // Payment fields
+  payment_status: {
+    type: String,
+    enum: ['pending', 'processing', 'paid', 'failed', 'refunded'],
+    default: 'pending'
+  },
+  payment_intent_id: {
+    type: String
+  },
+  payment_amount: {
+    type: Number,
+    default: 0
+  },
+  payment_currency: {
+    type: String,
+    default: 'usd'
+  },
+  payment_method: {
+    type: String
+  },
   created_at: {
     type: Date,
     default: Date.now
+  },
+  updated_at: {
+    type: Date
   }
 }, {
   timestamps: false // Don't use Mongoose's built-in timestamps
@@ -89,8 +112,14 @@ class BookingModel {
       const dataToInsert = {
         ...bookingData,
         booking_reference: bookingRef,
-        created_at: new Date()
+        created_at: new Date(),
+        updated_at: new Date()
       };
+      
+      // Set payment status based on provided data
+      if (bookingData.payment_intent_id && bookingData.payment_status === 'paid') {
+        dataToInsert.status = 'confirmed'; // Auto-confirm bookings that are paid
+      }
       
       // Remove any fields that don't exist in the schema
       delete dataToInsert.current_step;
@@ -111,6 +140,14 @@ class BookingModel {
       delete bookingData.booking_reference;
       delete bookingData.created_at;
       delete bookingData.current_step;
+      
+      // Add updated_at timestamp
+      bookingData.updated_at = new Date();
+      
+      // Auto-confirm booking if payment is marked as paid
+      if (bookingData.payment_status === 'paid' && !bookingData.status) {
+        bookingData.status = 'confirmed';
+      }
       
       const result = await Booking.findByIdAndUpdate(id, bookingData, { new: true });
       return !!result;
@@ -153,6 +190,15 @@ class BookingModel {
   static async find(criteria) {
     try {
       return await Booking.find(criteria).sort({ created_at: -1 });
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  // Find booking by payment intent ID
+  static async findByPaymentIntentId(paymentIntentId) {
+    try {
+      return await Booking.findOne({ payment_intent_id: paymentIntentId });
     } catch (error) {
       throw error;
     }
